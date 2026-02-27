@@ -1,0 +1,39 @@
+# Lets the program save and load data in a database file
+import sqlite3
+
+# Main library for building the program window
+import tkinter as tk
+
+# ttk gives better-looking widgets, messagebox shows popup messages
+from tkinter import ttk, messagebox
+
+# Used for working with dates
+from datetime import datetime, date
+
+# Helps group values without extra checks
+from collections import defaultdict
+
+# Used for making charts
+import matplotlib
+
+# Connects matplotlib charts to Tkinter
+matplotlib.use("TkAgg")
+
+# Creates the chart area
+from matplotlib.figure import Figure
+
+# Displays the chart inside the Tkinter window
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+
+# Name of the database file
+DB_FILE = "budget.db"
+
+# Standard date format: year-month-day
+DATE_FMT = "%Y-%m-%d"
+
+# Default expense categories for the budget
+DEFAULT_CATEGORIES = [
+    "Rent", "Utilities", "Groceries", "Transport", "Dining",
+    "Entertainment", "Health", "Subscriptions", "Shopping", "Other"
+]
