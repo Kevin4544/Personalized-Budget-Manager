@@ -37,3 +37,21 @@ DEFAULT_CATEGORIES = [
     "Rent", "Utilities", "Groceries", "Transport", "Dining",
     "Entertainment", "Health", "Subscriptions", "Shopping", "Other"
 ]
+#Both functions validate user input before the app stores it in the database.
+def safe_float(raw_text: str) -> float:
+    raw_text = (raw_text or "").strip()
+    if not raw_text:
+        raise ValueError("Amount is required.")
+    amount_value = float(raw_text)
+    if amount_value < 0:
+        raise ValueError("Amount must be >= 0.")
+    return amount_value
+
+
+def safe_date(raw_text: str) -> str:
+    raw_text = (raw_text or "").strip()
+    if not raw_text:
+        return date.today().strftime(DATE_FORMAT)
+    datetime.strptime(raw_text, DATE_FORMAT)
+    return raw_text
+
