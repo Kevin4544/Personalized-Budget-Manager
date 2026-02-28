@@ -55,3 +55,13 @@ def safe_date(raw_text: str) -> str:
     datetime.strptime(raw_text, DATE_FORMAT)
     return raw_text
 
+class BudgetDB:
+    def __init__(self, database_path: str):
+        # Connect to the budget database file
+        self.conn = sqlite3.connect(database_path)
+        # Enable foreign key rules in SQLite
+        self.conn.execute("PRAGMA foreign_keys = ON;")
+        # Set up the database tables and default values
+        self._init_schema()
+
+
