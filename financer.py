@@ -1,15 +1,25 @@
 import datetime
 # This file will hold methods related to finances, based on the input from main
 
-#finances = []
+spending_types = ["Groceries", "Rent", "Utilities", "Entertainment",
+                  "Savings Transfer", "Emergency Fund", "Other"]
 
 class Account:
 
     def __init__(self):
+        #finances is a list made of dictionaries
         self.finances = []
 
     def choose_expense(self):
-        print("\n1. Groceries \n2. Rent \n3. Utilities \n4. Entertainment \n5. Other \n6. Cancel\n")
+        
+        # For loop just to show the options for types of spending
+        count = 1
+        print()
+        for item in spending_types:
+            print(f"{count}. {item}")
+            count += 1
+        print("8. Cancel\n") #This one is separate since "cancel" isn't a type of spending, the list is useful for later
+
         in_exp = input("Enter the type of expense: ")
         exp = in_exp.strip()
         
@@ -23,11 +33,15 @@ class Account:
             case "4":
                 return "Entertainment"
             case "5":
+                return "Savings Transfer"
+            case "6": 
+                return "Emergency Fund"
+            case "7":
                 exp = input("Enter the name of the expense: ")
                 return exp
-            case "6":
+            case "8":
                 print("\nCancelled.\n")
-                return None
+                return -1
             case _:
                 print("\nInvalid choice, please try again.")
                 return None
@@ -57,6 +71,8 @@ class Account:
 
             case "2":
                 category = self.choose_expense()
+
+                # Currently does not work
                 total = 0.00
                 for record in self.finances:
                     if record["category"] == category:

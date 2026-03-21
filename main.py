@@ -1,10 +1,9 @@
-import pandas as pd
 import datetime
 
 from financer import Account
 import bud
 
-# Object created from Account class
+# Object created from Account class from financer.py
 my_acc = Account()
 
 # Method for viewing expenses
@@ -18,14 +17,16 @@ def see_history():
     
     for record in exp_history:
         print(f"{record['Spending Type']}: ${record['Cost']:.2f}")
-        
-
     
 
 print("\nHello! Welcome to your Personal Finance Tracker.")
 print("This program will help you budget and track your expenses.\n")
 
-income = float(input("To begin, enter your monthly income: $"))
+monthly_income = float(input("To begin, enter your monthly income: $"))
+#monthly income will remain the same, income is the one that will change
+income = monthly_income
+#This variable leads to the budget method we'll use, it starts off as none
+chosen_bud = None
 
 #Main loop starts here
 while True:
@@ -33,7 +34,7 @@ while True:
     print("1. Add an expense")
     print("2. View an expense")
     print("3. Check balance")
-    print("4. Start a new budgeting method")
+    print("4. Start a budgeting method")
     print("5. Exit\n")
 
     choice = input("Enter your choice: ")
@@ -42,7 +43,9 @@ while True:
 
         #This is where the data is collected from the user
         exp_type = my_acc.choose_expense()  
-        while exp_type == None:
+        if exp_type == -1:
+            continue
+        if exp_type == None:
             exp_type = my_acc.choose_expense()
 
         cost = float(input("How much did you spend? "))
@@ -56,6 +59,9 @@ while True:
         if cost > income:
             print("Warning: You have exceeded your monthly income.\n")
 
+        if chosen_bud != None:
+            bud.analyze(chosen_bud, income, my_acc.expense_list())
+
     elif choice == "2": #View an expense
         print("\nExpense List") 
         see_history()      
@@ -67,17 +73,15 @@ while True:
         my_acc.see_balance()
 
     elif choice == "4": #Choose budgeting method using info from bud.py
-        method = bud.choose_method()
-
+        
+        chosen_bud = bud.choose_method()
+        if chosen_bud == -1:
+            continue
+        bud.analyze(chosen_bud, monthly_income, my_acc.expense_list())
 
     elif choice == "5": #Exit
         print ("Goodbye!")
         break #This breaks the while loop and ends it
 
-    elif choice == "6": #View full dataframe of expenses (just for testing purposes)
-
-        #I need to get the finances dictionary here but with the data already recorded in it
-        df = pd.DataFrame(my_acc.finances)
-        print(df.head())
-else:
+    else:
         print("Invalid choice, please try again.")
