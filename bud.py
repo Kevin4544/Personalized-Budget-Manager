@@ -33,6 +33,7 @@ def analyze(method, monthly_income, finances):
         case _:
             print("\nInvalid choice, please try again.\n")
 
+
 #Budgeting methods
 def fifty_thirty_twenty(monthly_income, finances):
     # 50% for Needs, 30% for Wants, 20% for Savings
@@ -63,9 +64,10 @@ def fifty_thirty_twenty(monthly_income, finances):
 
 def zero_based(monthly_income, finances):
     print("Please enter how much will be assigned as the limit to each category.")
-    #for type in financer.spending_types():
+    for type in financer.spending_types:
+        print()
         # Probably use a dictionary, keys being types and values being amount limit
-    pass
+    
     # Still working on this
 
 
@@ -96,7 +98,7 @@ def seventy_twenty_ten(monthly_income, finances):
             status = "Good"
         else:
             status = "Budget Limit Exceeded"
-        print(f"\t{bucket}: Spent ${amounts:.2f} \n\tLimit ${limit:.2f} \n\tStatus:{status}\n")
+        print(f"\t{bucket}: Spent ${amounts:.2f} \n\tLimit ${limit:.2f} \n\tStatus: {status}\n")
 
 
 

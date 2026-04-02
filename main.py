@@ -1,4 +1,3 @@
-import datetime
 
 from financer import Account
 import bud
@@ -17,14 +16,18 @@ def see_history():
     
     for record in exp_history:
         print(f"{record['Spending Type']}: ${record['Cost']:.2f}")
+    print()
     
 
 print("\nHello! Welcome to your Personal Finance Tracker.")
 print("This program will help you budget and track your expenses.\n")
 
 monthly_income = float(input("To begin, enter your monthly income: $"))
-#monthly income will remain the same, income is the one that will change
+#monthly income should remain the same, income is the one that should change
+
+#income starts off being the same amount as monthly income.
 income = monthly_income
+
 #This variable leads to the budget method we'll use, it starts off as none
 chosen_bud = None
 
@@ -53,14 +56,16 @@ while True:
         # Store as a dictionary and add to our list along with current date 
         my_acc.add_expense(exp_type, cost)
 
-        #need budget checking method here, might use it to replace the next few lines
+        # Subtract the cost from remaining income
         income -= cost 
+
         print(f"Remaining income: ${income:.2f}\n")
         if cost > income:
             print("Warning: You have exceeded your monthly income.\n")
 
+        # If a budgeting method is currently in use, this will analyze the spendings to chech the status
         if chosen_bud != None:
-            bud.analyze(chosen_bud, income, my_acc.expense_list())
+            bud.analyze(chosen_bud, monthly_income, my_acc.expense_list())
 
     elif choice == "2": #View an expense
         print("\nExpense List") 
