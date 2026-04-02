@@ -1,130 +1,123 @@
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import ttk
 from collections import defaultdict
 from datetime import datetime
 import json
 import os
 
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# File where all budget data will be saved
-DATA_FILE = "budget_data.json"
 
-# List to store all transactions
+DATA_FILE = "finance_data.json"
+
 records = []
+monthly_income = 0.0
 
 
-# Save transactions and goal to a file
 def save_data():
     data = {
         "records": records,
-        "goal": goal_var.get()
+        "monthly_income": monthly_income
     }
 
     with open(DATA_FILE, "w") as file:
         json.dump(data, file, indent=4)
 
 
-# Load transactions and goal from the file if it exists
 def load_data():
-    global records
+    global records, monthly_income
 
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as file:
             data = json.load(file)
             records = data.get("records", [])
-            goal_var.set(data.get("goal", 0.0))
+            monthly_income = data.get("monthly_income", 0.0)
+
+            income_entry.delete(0, tk.END)
+            income_entry.insert(0, str(monthly_income))
 
 
-# Add a new transaction
+def get_selected_category():
+    choice = category_var.get()
+
+    if choice == "Other":
+        return other_category_entry.get().strip()
+
+    return choice
+
+
 def add_transaction():
-    entry_type = type_var.get()
-    group = category_entry.get().strip()
-    amount_text = amount_entry.get().strip()
-    note_text = note_entry.get().strip()
-    date_text = date_entry.get().strip()
+    global monthly_income
 
-    # Make sure required boxes are filled in
-    if group == "" or amount_text == "" or date_text == "":
-        messagebox.showerror("Input Error", "Please fill in date, category, and amount.")
+    category = get_selected_category()
+    amount_text = amount_entry.get().strip()
+    date_text = date_entry.get().strip()
+    trans_type = type_var.get()
+
+    if category == "":
+        messagebox.showerror("Input Error", "Please enter a category.")
         return
 
-    # Check if amount is a valid number
+    if amount_text == "":
+        messagebox.showerror("Input Error", "Please enter an amount.")
+        return
+
+    if date_text == "":
+        messagebox.showerror("Input Error", "Please enter a date.")
+        return
+
     try:
         amount = float(amount_text)
         if amount < 0:
             messagebox.showerror("Input Error", "Amount must be 0 or greater.")
             return
     except ValueError:
-        messagebox.showerror("Input Error", "Amount must be a number.")
+        messagebox.showerror("Input Error", "Amount must be a valid number.")
         return
 
-    # Check if date is in the correct format
     try:
         datetime.strptime(date_text, "%Y-%m-%d")
     except ValueError:
         messagebox.showerror("Input Error", "Date must be in YYYY-MM-DD format.")
         return
 
-    # Create one transaction record
     record = {
-        "date": date_text,
-        "type": entry_type,
-        "category": group,
+        "type": trans_type,
+        "category": category,
         "amount": amount,
-        "note": note_text
+        "date": date_text
     }
 
-    # Add the new record to the list
     records.append(record)
 
-    # Refresh everything on the screen
     save_data()
     show_records()
     update_summary()
-    update_goal_progress()
-    update_month_list()
-    update_savings_chart()
+    update_budget_method_display()
     update_category_chart()
+    update_balance_chart()
+    clear_inputs()
 
-    # Clear the input boxes
-    date_entry.delete(0, tk.END)
-    category_entry.delete(0, tk.END)
+
+def clear_inputs():
     amount_entry.delete(0, tk.END)
-    note_entry.delete(0, tk.END)
+    date_entry.delete(0, tk.END)
+    other_category_entry.delete(0, tk.END)
+    category_var.set("Groceries")
+    type_var.set("Expense")
 
 
-# Show all transactions in the listbox
 def show_records():
     transaction_listbox.delete(0, tk.END)
 
-    for i, item in enumerate(records, start=1):
-        line = f"{i}. {item['date']} | {item['type']} | {item['category']} | ${item['amount']:.2f}"
+    for index, record in enumerate(records, start=1):
+        line = f"{index}. {record['date']} | {record['type']} | {record['category']} | ${record['amount']:.2f}"
         transaction_listbox.insert(tk.END, line)
 
 
-# Update income, expense, and balance totals
-def update_summary():
-    total_income = 0
-    total_expense = 0
-
-    for item in records:
-        if item["type"] == "Income":
-            total_income += item["amount"]
-        else:
-            total_expense += item["amount"]
-
-    balance = total_income - total_expense
-
-    summary_label.config(
-        text=f"Income: ${total_income:.2f}    Expenses: ${total_expense:.2f}    Balance: ${balance:.2f}"
-    )
-
-
-# Delete the selected transaction
-def delete_transaction():
+def delete_selected():
     selected = transaction_listbox.curselection()
 
     if not selected:
@@ -132,231 +125,211 @@ def delete_transaction():
         return
 
     index = selected[0]
-    records.pop(index)
+    del records[index]
 
-    # Refresh everything after deleting
     save_data()
     show_records()
     update_summary()
-    update_goal_progress()
-    update_month_list()
-    update_savings_chart()
+    update_budget_method_display()
     update_category_chart()
+    update_balance_chart()
 
 
-# Set the savings goal
-def set_goal():
-    goal_text = goal_entry.get().strip()
+def set_income():
+    global monthly_income
 
-    if goal_text == "":
-        messagebox.showerror("Input Error", "Please enter a savings goal.")
+    income_text = income_entry.get().strip()
+
+    if income_text == "":
+        messagebox.showerror("Input Error", "Please enter your monthly income.")
         return
 
-    # Check if goal is a valid number
     try:
-        goal_amount = float(goal_text)
-        if goal_amount <= 0:
-            messagebox.showerror("Input Error", "Goal must be greater than 0.")
+        monthly_income = float(income_text)
+        if monthly_income < 0:
+            messagebox.showerror("Input Error", "Income must be 0 or greater.")
             return
     except ValueError:
-        messagebox.showerror("Input Error", "Goal must be a number.")
+        messagebox.showerror("Input Error", "Income must be a valid number.")
         return
 
-    goal_var.set(goal_amount)
     save_data()
-    update_goal_progress()
+    update_summary()
+    update_budget_method_display()
+    update_balance_chart()
 
 
-# Update the goal progress text
-def update_goal_progress():
-    total_income = 0
-    total_expense = 0
+def get_total_expenses():
+    total = 0.0
 
-    for item in records:
-        if item["type"] == "Income":
-            total_income += item["amount"]
-        else:
-            total_expense += item["amount"]
+    for record in records:
+        if record["type"] == "Expense":
+            total += record["amount"]
 
-    balance = total_income - total_expense
-    goal_amount = goal_var.get()
+    return total
 
-    if goal_amount > 0:
-        percent = (balance / goal_amount) * 100
 
-        # Keep percent between 0 and 100
-        if percent < 0:
-            percent = 0
-        if percent > 100:
-            percent = 100
+def get_total_income_records():
+    total = 0.0
 
-        goal_label.config(
-            text=f"Goal: ${goal_amount:.2f}\nSaved: ${balance:.2f}\nProgress: {percent:.1f}%"
+    for record in records:
+        if record["type"] == "Income":
+            total += record["amount"]
+
+    return total
+
+
+def update_summary():
+    entered_income = monthly_income
+    added_income = get_total_income_records()
+    total_expenses = get_total_expenses()
+
+    total_income = entered_income + added_income
+    balance = total_income - total_expenses
+
+    summary_label.config(
+        text=(
+            f"Monthly Income: ${entered_income:.2f}    "
+            f"Added Income: ${added_income:.2f}    "
+            f"Expenses: ${total_expenses:.2f}    "
+            f"Balance: ${balance:.2f}"
         )
-    else:
-        goal_label.config(text="No savings goal set.")
+    )
 
 
-# Get the year and month part from a date
-def get_month_from_date(date_text):
-    return date_text[:7]
+def fifty_thirty_twenty(income):
+    needs = income * 0.50
+    wants = income * 0.30
+    savings = income * 0.20
+
+    return (
+        f"50/30/20 Rule\n"
+        f"Needs: ${needs:.2f}\n"
+        f"Wants: ${wants:.2f}\n"
+        f"Savings/Debt: ${savings:.2f}"
+    )
 
 
-# Update the month drop-down list
-def update_month_list():
-    months = sorted({get_month_from_date(item["date"]) for item in records})
+def zero_based(income):
+    return (
+        f"Zero-Based Budget\n"
+        f"Income: ${income:.2f}\n"
+        f"Give every dollar a job until you reach $0 left unassigned."
+    )
 
-    month_menu["menu"].delete(0, "end")
 
-    if not months:
-        selected_month.set("")
-        month_menu["menu"].add_command(label="", command=tk._setit(selected_month, ""))
+def envelope(income):
+    return (
+        f"Envelope Budget\n"
+        f"Income: ${income:.2f}\n"
+        f"Split money into categories like rent, groceries, and entertainment."
+    )
+
+
+def seventy_twenty_ten(income):
+    living = income * 0.70
+    savings = income * 0.20
+    debt_or_giving = income * 0.10
+
+    return (
+        f"70/20/10 Rule\n"
+        f"Living: ${living:.2f}\n"
+        f"Savings: ${savings:.2f}\n"
+        f"Debt/Giving: ${debt_or_giving:.2f}"
+    )
+
+
+def update_budget_method_display():
+    income = monthly_income + get_total_income_records()
+    method = budget_method_var.get()
+
+    if income <= 0:
+        budget_result_label.config(text="Enter income to view a budgeting method.")
         return
 
-    if selected_month.get() not in months:
-        selected_month.set(months[0])
-
-    for month in months:
-        month_menu["menu"].add_command(
-            label=month,
-            command=lambda value=month: change_selected_month(value)
-        )
-
-
-# Change the selected month and update the category chart
-def change_selected_month(month):
-    selected_month.set(month)
-    update_category_chart()
-
-
-# Add simple chart styling
-def style_axis(chart):
-    chart.grid(True, axis="y", linestyle="--", alpha=0.4)
-    chart.set_facecolor("#f8f9fa")
-    chart.spines["top"].set_visible(False)
-    chart.spines["right"].set_visible(False)
-    chart.spines["left"].set_color("#cccccc")
-    chart.spines["bottom"].set_color("#cccccc")
-    chart.title.set_fontsize(14)
-    chart.xaxis.label.set_fontsize(11)
-    chart.yaxis.label.set_fontsize(11)
-
-
-# Update the savings by month chart
-def update_savings_chart():
-    total_income = 0
-    total_expense = 0
-
-    # Add all income and expense values
-    for item in records:
-        if item["type"] == "Income":
-            total_income += item["amount"]
-        else:
-            total_expense += item["amount"]
-
-    # Savings is income minus expense
-    total_savings = total_income - total_expense
-
-    savings_chart.clear()
-
-    # Only make the chart if there is income
-    if total_income > 0:
-        labels = ["Expenses", "Savings"]
-        values = [total_expense, max(total_savings, 0)]
-
-        # Remove empty parts from the chart
-        chart_data = [(label, value) for label, value in zip(labels, values) if value > 0]
-
-        if chart_data:
-            labels = [item[0] for item in chart_data]
-            values = [item[1] for item in chart_data]
-
-            savings_chart.pie(
-                values,
-                labels=labels,
-                autopct="%1.1f%%",
-                startangle=90
-            )
-            savings_chart.set_title("Income Breakdown", pad=12)
-        else:
-            savings_chart.set_title("Income Breakdown", pad=12)
-            savings_chart.text(0.5, 0.5, "No data to show", ha="center", va="center")
+    if method == "50/30/20 Rule":
+        result = fifty_thirty_twenty(income)
+    elif method == "Zero-Based":
+        result = zero_based(income)
+    elif method == "Envelope":
+        result = envelope(income)
+    elif method == "70/20/10 Rule":
+        result = seventy_twenty_ten(income)
     else:
-        savings_chart.set_title("Income Breakdown", pad=12)
-        savings_chart.text(0.5, 0.5, "No income data yet", ha="center", va="center")
+        result = "Choose a budgeting method."
 
-    savings_figure.tight_layout()
-    savings_canvas.draw()
+    budget_result_label.config(text=result)
 
-# Update the spending by category chart
+
 def update_category_chart():
-    month = selected_month.get()
     category_totals = defaultdict(float)
 
-    if month != "":
-        for item in records:
-            if item["type"] == "Expense" and get_month_from_date(item["date"]) == month:
-                category_totals[item["category"]] += item["amount"]
+    for record in records:
+        if record["type"] == "Expense":
+            category_totals[record["category"]] += record["amount"]
 
-    sorted_data = sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
-    categories = [item[0] for item in sorted_data]
-    amounts = [item[1] for item in sorted_data]
+    categories = list(category_totals.keys())
+    amounts = list(category_totals.values())
 
     category_chart.clear()
 
     if categories:
-        category_chart.barh(categories, amounts, color="#5B8DEF", edgecolor="black", linewidth=0.8)
-        category_chart.set_title(f"Spending by Category for {month}", pad=12)
-        category_chart.set_xlabel("Amount ($)")
-        category_chart.set_ylabel("Category")
-        category_chart.tick_params(axis="x", colors="#222222")
-        category_chart.tick_params(axis="y", colors="#222222")
-        style_axis(category_chart)
+        category_chart.bar(categories, amounts)
+        category_chart.set_title("Spending by Category")
+        category_chart.set_xlabel("Category")
+        category_chart.set_ylabel("Amount ($)")
+        category_chart.tick_params(axis="x", rotation=25)
     else:
-        category_chart.set_title("Spending by Category", pad=12)
-        style_axis(category_chart)
+        category_chart.set_title("Spending by Category")
+        category_chart.text(0.5, 0.5, "No expense data yet", ha="center", va="center")
 
     category_figure.tight_layout()
     category_canvas.draw()
 
 
-# Create the main app window
+def update_balance_chart():
+    entered_income = monthly_income
+    added_income = get_total_income_records()
+    total_expenses = get_total_expenses()
+    total_income = entered_income + added_income
+    balance = total_income - total_expenses
+
+    balance_chart.clear()
+
+    labels = ["Income", "Expenses", "Balance"]
+    values = [total_income, total_expenses, max(balance, 0)]
+
+    if total_income > 0 or total_expenses > 0:
+        balance_chart.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
+        balance_chart.set_title("Income Breakdown")
+    else:
+        balance_chart.set_title("Income Breakdown")
+        balance_chart.text(0.5, 0.5, "No data yet", ha="center", va="center")
+
+    balance_figure.tight_layout()
+    balance_canvas.draw()
+
+
 window = tk.Tk()
-window.title("Budget Tracker")
-window.geometry("1920x1080")
+window.title("Personal Finance Tracker")
+window.geometry("1600x900")
 window.configure(bg="#e9ecef")
 
-# Set chart text style
-plt.rcParams.update({
-    "font.size": 10,
-    "axes.titlesize": 14,
-    "axes.labelsize": 11,
-    "text.color": "#222222",
-    "axes.labelcolor": "#222222",
-    "xtick.color": "#222222",
-    "ytick.color": "#222222"
-})
 
-# Tkinter variables
-goal_var = tk.DoubleVar(value=0.0)
-type_var = tk.StringVar(value="Expense")
-selected_month = tk.StringVar(value="")
-
-# Main layout frames
 main_frame = tk.Frame(window, bg="#e9ecef")
 main_frame.pack(fill="both", expand=True, padx=15, pady=15)
 
 left_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=15, pady=15)
 left_frame.pack(side="left", fill="y", padx=(0, 10))
 
-middle_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=10, pady=10, width=420)
+middle_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=15, pady=15, width=420)
 middle_frame.pack(side="left", fill="y", padx=(0, 10))
 middle_frame.pack_propagate(False)
 
-right_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=10, pady=10)
+right_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=15, pady=15)
 right_frame.pack(side="right", fill="both", expand=True)
 
-# Common widget styles
+
 label_style = {"bg": "white", "fg": "#222222"}
 button_style = {
     "bg": "#dfe6ee",
@@ -369,104 +342,112 @@ entry_style = {
     "fg": "#222222",
     "insertbackground": "#222222"
 }
-listbox_style = {
-    "bg": "white",
-    "fg": "#222222",
-    "selectbackground": "#5B8DEF",
-    "selectforeground": "white"
-}
 
-# Left side input area
-tk.Label(left_frame, text="Add Transaction", font=("Arial", 16, "bold"), **label_style).pack(pady=10)
+
+type_var = tk.StringVar(value="Expense")
+category_var = tk.StringVar(value="Groceries")
+budget_method_var = tk.StringVar(value="50/30/20 Rule")
+
+
+tk.Label(left_frame, text="Finance Input", font=("Arial", 16, "bold"), **label_style).pack(pady=10)
+
+tk.Label(left_frame, text="Monthly Income", **label_style).pack(anchor="w")
+income_entry = tk.Entry(left_frame, width=25, **entry_style)
+income_entry.pack(pady=5)
+
+tk.Button(left_frame, text="Set Income", command=set_income, width=20, **button_style).pack(pady=8)
 
 tk.Label(left_frame, text="Date (YYYY-MM-DD)", **label_style).pack(anchor="w")
 date_entry = tk.Entry(left_frame, width=25, **entry_style)
 date_entry.pack(pady=5)
+date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
 
 tk.Label(left_frame, text="Type", **label_style).pack(anchor="w")
-type_menu = tk.OptionMenu(left_frame, type_var, "Income", "Expense")
+type_menu = tk.OptionMenu(left_frame, type_var, "Expense", "Income")
 type_menu.pack(pady=5, fill="x")
-type_menu.config(bg="#dfe6ee", fg="#222222", activebackground="#cfd8e3", activeforeground="#111111", highlightthickness=0)
-type_menu["menu"].config(bg="white", fg="#222222")
 
 tk.Label(left_frame, text="Category", **label_style).pack(anchor="w")
-category_entry = tk.Entry(left_frame, width=25, **entry_style)
-category_entry.pack(pady=5)
+category_menu = tk.OptionMenu(
+    left_frame,
+    category_var,
+    "Groceries",
+    "Rent",
+    "Utilities",
+    "Entertainment",
+    "Other"
+)
+category_menu.pack(pady=5, fill="x")
+
+tk.Label(left_frame, text="Other Category", **label_style).pack(anchor="w")
+other_category_entry = tk.Entry(left_frame, width=25, **entry_style)
+other_category_entry.pack(pady=5)
 
 tk.Label(left_frame, text="Amount", **label_style).pack(anchor="w")
 amount_entry = tk.Entry(left_frame, width=25, **entry_style)
 amount_entry.pack(pady=5)
 
-tk.Label(left_frame, text="Note", **label_style).pack(anchor="w")
-note_entry = tk.Entry(left_frame, width=25, **entry_style)
-note_entry.pack(pady=5)
-
 tk.Button(left_frame, text="Add Transaction", command=add_transaction, width=20, **button_style).pack(pady=10)
-tk.Button(left_frame, text="Delete Selected", command=delete_transaction, width=20, **button_style).pack(pady=5)
+tk.Button(left_frame, text="Delete Selected", command=delete_selected, width=20, **button_style).pack(pady=5)
 
-tk.Label(left_frame, text="Savings Goal", font=("Arial", 12, "bold"), **label_style).pack(pady=(20, 5))
-goal_entry = tk.Entry(left_frame, width=25, **entry_style)
-goal_entry.pack(pady=5)
+tk.Label(left_frame, text="Budgeting Method", font=("Arial", 12, "bold"), **label_style).pack(pady=(20, 5))
+budget_menu = tk.OptionMenu(
+    left_frame,
+    budget_method_var,
+    "50/30/20 Rule",
+    "Zero-Based",
+    "Envelope",
+    "70/20/10 Rule",
+    command=lambda x: update_budget_method_display()
+)
+budget_menu.pack(pady=5, fill="x")
 
-tk.Button(left_frame, text="Set Goal", command=set_goal, width=20, **button_style).pack(pady=5)
+budget_result_label = tk.Label(
+    left_frame,
+    text="Enter income to view a budgeting method.",
+    justify="left",
+    wraplength=250,
+    **label_style
+)
+budget_result_label.pack(pady=10, anchor="w")
 
-goal_label = tk.Label(left_frame, text="No savings goal set.", justify="left", **label_style)
-goal_label.pack(pady=10, anchor="w")
 
-tk.Label(left_frame, text="Select Month", font=("Arial", 12, "bold"), **label_style).pack(pady=(20, 5))
-month_menu = tk.OptionMenu(left_frame, selected_month, "")
-month_menu.pack(pady=5, fill="x")
-month_menu.config(bg="#dfe6ee", fg="#222222", activebackground="#cfd8e3", activeforeground="#111111", highlightthickness=0)
-month_menu["menu"].config(bg="white", fg="#222222")
-
-# Middle area for the transaction list
 tk.Label(middle_frame, text="Transactions", font=("Arial", 16, "bold"), **label_style).pack(pady=10)
 
-transaction_scrollbar = tk.Scrollbar(middle_frame)
-transaction_scrollbar.pack(side="right", fill="y", pady=10)
-
-transaction_listbox = tk.Listbox(
-    middle_frame,
-    width=50,
-    height=30,
-    yscrollcommand=transaction_scrollbar.set,
-    font=("Courier New", 10),
-    **listbox_style
-)
+transaction_listbox = tk.Listbox(middle_frame, width=50, height=35)
 transaction_listbox.pack(fill="both", expand=True, pady=10)
-
-transaction_scrollbar.config(command=transaction_listbox.yview)
 
 summary_label = tk.Label(
     middle_frame,
-    text="Income: $0.00    Expenses: $0.00    Balance: $0.00",
-    font=("Arial", 12, "bold"),
-    wraplength=380,
+    text="Monthly Income: $0.00    Added Income: $0.00    Expenses: $0.00    Balance: $0.00",
     justify="left",
+    wraplength=380,
     **label_style
 )
-summary_label.pack(pady=10)
+summary_label.pack(pady=10, anchor="w")
 
-# Right side for charts
-tk.Label(right_frame, text="Charts", font=("Arial", 16, "bold"), **label_style).pack(pady=10)
 
-savings_figure = Figure(figsize=(11, 4.5), dpi=100, facecolor="white")
-savings_chart = savings_figure.add_subplot(111)
-savings_canvas = FigureCanvasTkAgg(savings_figure, master=right_frame)
-savings_canvas.get_tk_widget().pack(fill="both", expand=True, pady=(0, 15))
+charts_top_frame = tk.Frame(right_frame, bg="white")
+charts_top_frame.pack(fill="both", expand=True)
 
-category_figure = Figure(figsize=(11, 4.5), dpi=100, facecolor="white")
+charts_bottom_frame = tk.Frame(right_frame, bg="white")
+charts_bottom_frame.pack(fill="both", expand=True)
+
+category_figure = plt.Figure(figsize=(7, 4), dpi=100)
 category_chart = category_figure.add_subplot(111)
-category_canvas = FigureCanvasTkAgg(category_figure, master=right_frame)
+category_canvas = FigureCanvasTkAgg(category_figure, master=charts_top_frame)
 category_canvas.get_tk_widget().pack(fill="both", expand=True)
 
-# Load saved data and start the app
+balance_figure = plt.Figure(figsize=(7, 4), dpi=100)
+balance_chart = balance_figure.add_subplot(111)
+balance_canvas = FigureCanvasTkAgg(balance_figure, master=charts_bottom_frame)
+balance_canvas.get_tk_widget().pack(fill="both", expand=True)
+
+
 load_data()
 show_records()
 update_summary()
-update_goal_progress()
-update_month_list()
-update_savings_chart()
+update_budget_method_display()
 update_category_chart()
+update_balance_chart()
 
 window.mainloop()
