@@ -63,13 +63,14 @@ class Account:
 
         match view:
             case "1":
-                #add all costs together
+                #add all spendings together
                 total = 0.00
                 for record in self.finances:
                     total += record["Cost"]
                 print(f"\nTotal Spending: ${total:.2f}")
 
             case "2":
+                #show total spendings from just one category
                 category = self.choose_expense()
 
                 # Currently does not work
@@ -84,5 +85,8 @@ class Account:
             
             case "4":
                 print("\nCancelled.\n")
+
             case _:
                 print("\nInvalid choice, please try again.\n")
+                # Should start over
+                

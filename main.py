@@ -6,7 +6,6 @@ import bud
 my_acc = Account()
 
 # Method for viewing expenses
-# Couldn't make it work through the financer, will stay here for now
 def see_history():
     exp_history = my_acc.expense_list()
 
@@ -17,14 +16,24 @@ def see_history():
     for record in exp_history:
         print(f"{record['Spending Type']}: ${record['Cost']:.2f}")
     print()
-    
+
+def edit_monthly():
+    while True:
+        try: 
+            monthly_in = float(input("Please enter your monthly income: $"))
+            #monthly income should remain the same, income is the one that should change
+        except ValueError:
+            print("Please enter a valid amount.")
+        else:
+            print()
+            break
+    return monthly_in
+
 
 print("\nHello! Welcome to your Personal Finance Tracker.")
 print("This program will help you budget and track your expenses.\n")
 
-monthly_income = float(input("To begin, enter your monthly income: $"))
-#monthly income should remain the same, income is the one that should change
-
+monthly_income = edit_monthly()
 #income starts off being the same amount as monthly income.
 income = monthly_income
 
@@ -38,7 +47,8 @@ while True:
     print("2. View an expense")
     print("3. Check balance")
     print("4. Start a budgeting method")
-    print("5. Exit\n")
+    print("5. Edit monthly income")
+    print("6. Exit\n")
 
     choice = input("Enter your choice: ")
 
@@ -63,7 +73,7 @@ while True:
         if cost > income:
             print("Warning: You have exceeded your monthly income.\n")
 
-        # If a budgeting method is currently in use, this will analyze the spendings to chech the status
+        # If a budgeting method is currently in use, this will check its status
         if chosen_bud != None:
             bud.analyze(chosen_bud, monthly_income, my_acc.expense_list())
 
@@ -83,10 +93,13 @@ while True:
         if chosen_bud == -1:
             continue
         bud.analyze(chosen_bud, monthly_income, my_acc.expense_list())
+        
+    elif choice == "5":
+        monthly_income = edit_monthly()
 
-    elif choice == "5": #Exit
+    elif choice == "6": #Exit
         print ("Goodbye!")
         break #This breaks the while loop and ends it
 
     else:
-        print("Invalid choice, please try again.")
+        print("\nInvalid choice, please try again.\n")
