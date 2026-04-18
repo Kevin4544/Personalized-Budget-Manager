@@ -63,18 +63,34 @@ def fifty_thirty_twenty(monthly_income, finances):
         print(f"\t{bucket}: Spent ${amounts:.2f} \n\tLimit ${limit:.2f} \n\tStatus:{status}\n")
 
 def zero_based(monthly_income, finances):
-    print("Please enter how much will be assigned as the limit to each category.")
-    for type in financer.spending_types:
-        print()
-        # Probably use a dictionary, keys being types and values being amount limit
+    global zb_limits
+    # This method lets the user assign their own limit for each category
+
+    if not zb_limits:
+        print("Please enter how much will be assigned as the limit to each category.")
+        # 'type' refers to the 'key' values in the limits dictionary, which are the category types.
+        for type in financer.spending_types:
+            amount = float(input(f"{type}: "))
+            monthly_income -= amount
+            print(f"Remaining income: ${monthly_income:.2f}")
+            zb_limits[type] = amount
+        
+        print("\nZero-Based Budgeting Plan")
+        for type, amount in zb_limits.items():
+            spent = 0
+            for item in finances:
+                if item["Spending Type"] == type:
+                    spent += item["Cost"]
+            status = None
+            if spent <= amount:
+                status = "Good"
+            else:
+                status = "Budget Limit Exceeded"
+            print(f"\t{type}: Spent ${spent:.2f} \n\tLimit ${amount:.2f} \n\tStatus: {status}\n")
     
-    # Still working on this
+    # Need 
+    
 
-
-def envelope():
-    # Limited amounts for each expense category
-    pass
-    # still working on this
 
 def seventy_twenty_ten(monthly_income, finances):
     # This method follows the same process as 50,30,20 method
