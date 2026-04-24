@@ -1,453 +1,696 @@
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import ttk
-from collections import defaultdict
+import sqlite3
 from datetime import datetime
-import json
-import os
+from collections import defaultdict
+import tkinter as tk
+from tkinter import ttk, messagebox
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-
-DATA_FILE = "finance_data.json"
-
-records = []
-monthly_income = 0.0
-
-
-def save_data():
-    data = {
-        "records": records,
-        "monthly_income": monthly_income
-    }
-
-    with open(DATA_FILE, "w") as file:
-        json.dump(data, file, indent=4)
-
-
-def load_data():
-    global records, monthly_income
-
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as file:
-            data = json.load(file)
-            records = data.get("records", [])
-            monthly_income = data.get("monthly_income", 0.0)
-
-            income_entry.delete(0, tk.END)
-            income_entry.insert(0, str(monthly_income))
-
-
-def get_selected_category():
-    choice = category_var.get()
-
-    if choice == "Other":
-        return other_category_entry.get().strip()
-
-    return choice
-
-
-def add_transaction():
-    global monthly_income
-
-    category = get_selected_category()
-    amount_text = amount_entry.get().strip()
-    date_text = date_entry.get().strip()
-    trans_type = type_var.get()
-
-    if category == "":
-        messagebox.showerror("Input Error", "Please enter a category.")
-        return
-
-    if amount_text == "":
-        messagebox.showerror("Input Error", "Please enter an amount.")
-        return
-
-    if date_text == "":
-        messagebox.showerror("Input Error", "Please enter a date.")
-        return
-
-    try:
-        amount = float(amount_text)
-        if amount < 0:
-            messagebox.showerror("Input Error", "Amount must be 0 or greater.")
-            return
-    except ValueError:
-        messagebox.showerror("Input Error", "Amount must be a valid number.")
-        return
-
-    try:
-        datetime.strptime(date_text, "%Y-%m-%d")
-    except ValueError:
-        messagebox.showerror("Input Error", "Date must be in YYYY-MM-DD format.")
-        return
-
-    record = {
-        "type": trans_type,
-        "category": category,
-        "amount": amount,
-        "date": date_text
-    }
-
-    records.append(record)
-
-    save_data()
-    show_records()
-    update_summary()
-    update_budget_method_display()
-    update_category_chart()
-    update_balance_chart()
-    clear_inputs()
-
-
-def clear_inputs():
-    amount_entry.delete(0, tk.END)
-    date_entry.delete(0, tk.END)
-    other_category_entry.delete(0, tk.END)
-    category_var.set("Groceries")
-    type_var.set("Expense")
-
-
-def show_records():
-    transaction_listbox.delete(0, tk.END)
-
-    for index, record in enumerate(records, start=1):
-        line = f"{index}. {record['date']} | {record['type']} | {record['category']} | ${record['amount']:.2f}"
-        transaction_listbox.insert(tk.END, line)
-
-
-def delete_selected():
-    selected = transaction_listbox.curselection()
-
-    if not selected:
-        messagebox.showerror("Selection Error", "Please select a transaction to delete.")
-        return
-
-    index = selected[0]
-    del records[index]
-
-    save_data()
-    show_records()
-    update_summary()
-    update_budget_method_display()
-    update_category_chart()
-    update_balance_chart()
-
-
-def set_income():
-    global monthly_income
-
-    income_text = income_entry.get().strip()
-
-    if income_text == "":
-        messagebox.showerror("Input Error", "Please enter your monthly income.")
-        return
-
-    try:
-        monthly_income = float(income_text)
-        if monthly_income < 0:
-            messagebox.showerror("Input Error", "Income must be 0 or greater.")
-            return
-    except ValueError:
-        messagebox.showerror("Input Error", "Income must be a valid number.")
-        return
-
-    save_data()
-    update_summary()
-    update_budget_method_display()
-    update_balance_chart()
-
-
-def get_total_expenses():
-    total = 0.0
-
-    for record in records:
-        if record["type"] == "Expense":
-            total += record["amount"]
-
-    return total
-
-
-def get_total_income_records():
-    total = 0.0
-
-    for record in records:
-        if record["type"] == "Income":
-            total += record["amount"]
-
-    return total
-
-
-def update_summary():
-    entered_income = monthly_income
-    added_income = get_total_income_records()
-    total_expenses = get_total_expenses()
-
-    total_income = entered_income + added_income
-    balance = total_income - total_expenses
-
-    summary_label.config(
-        text=(
-            f"Monthly Income: ${entered_income:.2f}    "
-            f"Added Income: ${added_income:.2f}    "
-            f"Expenses: ${total_expenses:.2f}    "
-            f"Balance: ${balance:.2f}"
-        )
-    )
-
-
-def fifty_thirty_twenty(income):
-    needs = income * 0.50
-    wants = income * 0.30
-    savings = income * 0.20
-
-    return (
-        f"50/30/20 Rule\n"
-        f"Needs: ${needs:.2f}\n"
-        f"Wants: ${wants:.2f}\n"
-        f"Savings/Debt: ${savings:.2f}"
-    )
-
-
-def zero_based(income):
-    return (
-        f"Zero-Based Budget\n"
-        f"Income: ${income:.2f}\n"
-        f"Give every dollar a job until you reach $0 left unassigned."
-    )
-
-
-def envelope(income):
-    return (
-        f"Envelope Budget\n"
-        f"Income: ${income:.2f}\n"
-        f"Split money into categories like rent, groceries, and entertainment."
-    )
-
-
-def seventy_twenty_ten(income):
-    living = income * 0.70
-    savings = income * 0.20
-    debt_or_giving = income * 0.10
-
-    return (
-        f"70/20/10 Rule\n"
-        f"Living: ${living:.2f}\n"
-        f"Savings: ${savings:.2f}\n"
-        f"Debt/Giving: ${debt_or_giving:.2f}"
-    )
-
-
-def update_budget_method_display():
-    income = monthly_income + get_total_income_records()
-    method = budget_method_var.get()
-
-    if income <= 0:
-        budget_result_label.config(text="Enter income to view a budgeting method.")
-        return
-
-    if method == "50/30/20 Rule":
-        result = fifty_thirty_twenty(income)
-    elif method == "Zero-Based":
-        result = zero_based(income)
-    elif method == "Envelope":
-        result = envelope(income)
-    elif method == "70/20/10 Rule":
-        result = seventy_twenty_ten(income)
-    else:
-        result = "Choose a budgeting method."
-
-    budget_result_label.config(text=result)
-
-
-def update_category_chart():
-    category_totals = defaultdict(float)
-
-    for record in records:
-        if record["type"] == "Expense":
-            category_totals[record["category"]] += record["amount"]
-
-    categories = list(category_totals.keys())
-    amounts = list(category_totals.values())
-
-    category_chart.clear()
-
-    if categories:
-        category_chart.bar(categories, amounts)
-        category_chart.set_title("Spending by Category")
-        category_chart.set_xlabel("Category")
-        category_chart.set_ylabel("Amount ($)")
-        category_chart.tick_params(axis="x", rotation=25)
-    else:
-        category_chart.set_title("Spending by Category")
-        category_chart.text(0.5, 0.5, "No expense data yet", ha="center", va="center")
-
-    category_figure.tight_layout()
-    category_canvas.draw()
-
-
-def update_balance_chart():
-    entered_income = monthly_income
-    added_income = get_total_income_records()
-    total_expenses = get_total_expenses()
-    total_income = entered_income + added_income
-    balance = total_income - total_expenses
-
-    balance_chart.clear()
-
-    labels = ["Income", "Expenses", "Balance"]
-    values = [total_income, total_expenses, max(balance, 0)]
-
-    if total_income > 0 or total_expenses > 0:
-        balance_chart.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
-        balance_chart.set_title("Income Breakdown")
-    else:
-        balance_chart.set_title("Income Breakdown")
-        balance_chart.text(0.5, 0.5, "No data yet", ha="center", va="center")
-
-    balance_figure.tight_layout()
-    balance_canvas.draw()
-
-
-window = tk.Tk()
-window.title("Personal Finance Tracker")
-window.geometry("1600x900")
-window.configure(bg="#e9ecef")
-
-
-main_frame = tk.Frame(window, bg="#e9ecef")
-main_frame.pack(fill="both", expand=True, padx=15, pady=15)
-
-left_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=15, pady=15)
-left_frame.pack(side="left", fill="y", padx=(0, 10))
-
-middle_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=15, pady=15, width=420)
-middle_frame.pack(side="left", fill="y", padx=(0, 10))
-middle_frame.pack_propagate(False)
-
-right_frame = tk.Frame(main_frame, bg="white", bd=1, relief="solid", padx=15, pady=15)
-right_frame.pack(side="right", fill="both", expand=True)
-
-
-label_style = {"bg": "white", "fg": "#222222"}
-button_style = {
-    "bg": "#dfe6ee",
-    "fg": "#222222",
-    "activebackground": "#cfd8e3",
-    "activeforeground": "#111111"
-}
-entry_style = {
-    "bg": "white",
-    "fg": "#222222",
-    "insertbackground": "#222222"
-}
-
-
-type_var = tk.StringVar(value="Expense")
-category_var = tk.StringVar(value="Groceries")
-budget_method_var = tk.StringVar(value="50/30/20 Rule")
-
-
-tk.Label(left_frame, text="Finance Input", font=("Arial", 16, "bold"), **label_style).pack(pady=10)
-
-tk.Label(left_frame, text="Monthly Income", **label_style).pack(anchor="w")
-income_entry = tk.Entry(left_frame, width=25, **entry_style)
-income_entry.pack(pady=5)
-
-tk.Button(left_frame, text="Set Income", command=set_income, width=20, **button_style).pack(pady=8)
-
-tk.Label(left_frame, text="Date (YYYY-MM-DD)", **label_style).pack(anchor="w")
-date_entry = tk.Entry(left_frame, width=25, **entry_style)
-date_entry.pack(pady=5)
-date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-
-tk.Label(left_frame, text="Type", **label_style).pack(anchor="w")
-type_menu = tk.OptionMenu(left_frame, type_var, "Expense", "Income")
-type_menu.pack(pady=5, fill="x")
-
-tk.Label(left_frame, text="Category", **label_style).pack(anchor="w")
-category_menu = tk.OptionMenu(
-    left_frame,
-    category_var,
-    "Groceries",
+DB_FILE = "finance_tracker.db"
+DATE_FMT = "%Y-%m-%d"
+DEFAULT_CATEGORIES = [
     "Rent",
+    "Groceries",
     "Utilities",
+    "Transport",
+    "Dining",
     "Entertainment",
-    "Other"
-)
-category_menu.pack(pady=5, fill="x")
-
-tk.Label(left_frame, text="Other Category", **label_style).pack(anchor="w")
-other_category_entry = tk.Entry(left_frame, width=25, **entry_style)
-other_category_entry.pack(pady=5)
-
-tk.Label(left_frame, text="Amount", **label_style).pack(anchor="w")
-amount_entry = tk.Entry(left_frame, width=25, **entry_style)
-amount_entry.pack(pady=5)
-
-tk.Button(left_frame, text="Add Transaction", command=add_transaction, width=20, **button_style).pack(pady=10)
-tk.Button(left_frame, text="Delete Selected", command=delete_selected, width=20, **button_style).pack(pady=5)
-
-tk.Label(left_frame, text="Budgeting Method", font=("Arial", 12, "bold"), **label_style).pack(pady=(20, 5))
-budget_menu = tk.OptionMenu(
-    left_frame,
-    budget_method_var,
-    "50/30/20 Rule",
-    "Zero-Based",
-    "Envelope",
-    "70/20/10 Rule",
-    command=lambda x: update_budget_method_display()
-)
-budget_menu.pack(pady=5, fill="x")
-
-budget_result_label = tk.Label(
-    left_frame,
-    text="Enter income to view a budgeting method.",
-    justify="left",
-    wraplength=250,
-    **label_style
-)
-budget_result_label.pack(pady=10, anchor="w")
+    "Health",
+    "Subscriptions",
+    "Shopping",
+    "Other",
+    "Savings",
+]
+BUDGET_METHODS = ["50/30/20 Rule", "70/20/10 Rule", "Custom Savings", "Zero-Based"]
 
 
-tk.Label(middle_frame, text="Transactions", font=("Arial", 16, "bold"), **label_style).pack(pady=10)
+class FinanceDB:
+    def __init__(self, db_path=DB_FILE):
+        self.conn = sqlite3.connect(db_path)
+        self.conn.row_factory = sqlite3.Row
+        self.create_tables()
+        self.seed_defaults()
 
-transaction_listbox = tk.Listbox(middle_frame, width=50, height=35)
-transaction_listbox.pack(fill="both", expand=True, pady=10)
+    def create_tables(self):
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                amount REAL NOT NULL CHECK(amount >= 0)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS budget_allocations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                month_key TEXT NOT NULL,
+                category TEXT NOT NULL,
+                amount REAL NOT NULL CHECK(amount >= 0),
+                UNIQUE(month_key, category)
+            )
+            """
+        )
+        self.conn.commit()
 
-summary_label = tk.Label(
-    middle_frame,
-    text="Monthly Income: $0.00    Added Income: $0.00    Expenses: $0.00    Balance: $0.00",
-    justify="left",
-    wraplength=380,
-    **label_style
-)
-summary_label.pack(pady=10, anchor="w")
+    def seed_defaults(self):
+        cur = self.conn.cursor()
+        for name in DEFAULT_CATEGORIES:
+            cur.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)", (name,))
+        defaults = {
+            "monthly_income": "0",
+            "custom_savings_percent": "20",
+            "budget_method": "50/30/20 Rule",
+        }
+        for key, value in defaults.items():
+            cur.execute(
+                "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
+                (key, value),
+            )
+        self.conn.commit()
+
+    def get_setting(self, key, default=""):
+        row = self.conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+
+    def set_setting(self, key, value):
+        self.conn.execute(
+            """
+            INSERT INTO settings(key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, str(value)),
+        )
+        self.conn.commit()
+
+    def get_categories(self):
+        rows = self.conn.execute(
+            "SELECT name FROM categories ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+        return [row["name"] for row in rows]
+
+    def add_category(self, name):
+        self.conn.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)", (name,))
+        self.conn.commit()
+
+    def add_transaction(self, date_text, trans_type, category, amount):
+        self.conn.execute(
+            "INSERT INTO transactions(date, type, category, amount) VALUES (?, ?, ?, ?)",
+            (date_text, trans_type, category, amount),
+        )
+        self.conn.commit()
+
+    def delete_transaction(self, tx_id):
+        self.conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
+        self.conn.commit()
+
+    def get_transactions_for_month(self, month_key):
+        rows = self.conn.execute(
+            """
+            SELECT id, date, type, category, amount
+            FROM transactions
+            WHERE substr(date, 1, 7) = ?
+            ORDER BY date DESC, id DESC
+            """,
+            (month_key,),
+        ).fetchall()
+        return rows
+
+    def get_month_totals(self, month_key):
+        rows = self.conn.execute(
+            """
+            SELECT type, COALESCE(SUM(amount), 0) AS total
+            FROM transactions
+            WHERE substr(date, 1, 7) = ?
+            GROUP BY type
+            """,
+            (month_key,),
+        ).fetchall()
+        totals = {"Expense": 0.0, "Income": 0.0, "Savings": 0.0}
+        for row in rows:
+            totals[row["type"]] = float(row["total"])
+        return totals
+
+    def get_expense_totals_by_category(self, month_key):
+        rows = self.conn.execute(
+            """
+            SELECT category, COALESCE(SUM(amount), 0) AS total
+            FROM transactions
+            WHERE substr(date, 1, 7) = ? AND type = 'Expense'
+            GROUP BY category
+            ORDER BY total DESC, category
+            """,
+            (month_key,),
+        ).fetchall()
+        return {row["category"]: float(row["total"]) for row in rows}
+
+    def save_allocations(self, month_key, allocations):
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM budget_allocations WHERE month_key = ?", (month_key,))
+        for category, amount in allocations.items():
+            if amount > 0:
+                cur.execute(
+                    "INSERT INTO budget_allocations(month_key, category, amount) VALUES (?, ?, ?)",
+                    (month_key, category, amount),
+                )
+        self.conn.commit()
+
+    def get_allocations(self, month_key):
+        rows = self.conn.execute(
+            """
+            SELECT category, amount
+            FROM budget_allocations
+            WHERE month_key = ?
+            ORDER BY amount DESC, category
+            """,
+            (month_key,),
+        ).fetchall()
+        return {row["category"]: float(row["amount"]) for row in rows}
 
 
-charts_top_frame = tk.Frame(right_frame, bg="white")
-charts_top_frame.pack(fill="both", expand=True)
+class BudgetTrackerApp:
+    def __init__(self, root):
+        self.root = root
+        self.db = FinanceDB()
+        self.root.title("Polished Budget Tracker")
+        self.root.geometry("1700x980")
+        self.root.configure(bg="#eef2f5")
 
-charts_bottom_frame = tk.Frame(right_frame, bg="white")
-charts_bottom_frame.pack(fill="both", expand=True)
+        self.type_var = tk.StringVar(value="Expense")
+        self.category_var = tk.StringVar(value="Groceries")
+        self.method_var = tk.StringVar(value=self.db.get_setting("budget_method", BUDGET_METHODS[0]))
+        self.month_var = tk.StringVar(value=datetime.now().strftime("%Y-%m"))
+        self.custom_percent_var = tk.StringVar(value=self.db.get_setting("custom_savings_percent", "20"))
+        self.income_var = tk.StringVar(value=self.db.get_setting("monthly_income", "0"))
+        self.plan_category_var = tk.StringVar(value="Rent")
+        self.plan_amount_var = tk.StringVar(value="")
 
-category_figure = plt.Figure(figsize=(7, 4), dpi=100)
-category_chart = category_figure.add_subplot(111)
-category_canvas = FigureCanvasTkAgg(category_figure, master=charts_top_frame)
-category_canvas.get_tk_widget().pack(fill="both", expand=True)
+        self.build_ui()
+        self.refresh_categories()
+        self.refresh_all()
 
-balance_figure = plt.Figure(figsize=(7, 4), dpi=100)
-balance_chart = balance_figure.add_subplot(111)
-balance_canvas = FigureCanvasTkAgg(balance_figure, master=charts_bottom_frame)
-balance_canvas.get_tk_widget().pack(fill="both", expand=True)
+    def build_ui(self):
+        main = tk.Frame(self.root, bg="#eef2f5")
+        main.pack(fill="both", expand=True, padx=14, pady=14)
+
+        left = tk.Frame(main, bg="white", bd=1, relief="solid", padx=14, pady=14)
+        left.pack(side="left", fill="y", padx=(0, 10))
+
+        right = tk.Frame(main, bg="#eef2f5")
+        right.pack(side="left", fill="both", expand=True)
+
+        top = tk.Frame(right, bg="white", bd=1, relief="solid", padx=14, pady=14)
+        top.pack(fill="x", pady=(0, 10))
+
+        middle = tk.Frame(right, bg="white", bd=1, relief="solid", padx=14, pady=14)
+        middle.pack(fill="both", expand=True, pady=(0, 10))
+
+        bottom = tk.Frame(right, bg="white", bd=1, relief="solid", padx=14, pady=14)
+        bottom.pack(fill="both", expand=True)
+
+        label_style = {"bg": "white", "fg": "#1f2933"}
+        btn_style = {
+            "bg": "#dce6ef",
+            "fg": "#1f2933",
+            "activebackground": "#cdd9e5",
+            "activeforeground": "#111827",
+        }
+
+        tk.Label(left, text="Budget Tracker", font=("Arial", 16, "bold"), **label_style).pack(pady=(0, 12))
+
+        tk.Label(left, text="Working Month", **label_style).pack(anchor="w")
+        month_frame = tk.Frame(left, bg="white")
+        month_frame.pack(fill="x", pady=4)
+        tk.Entry(month_frame, textvariable=self.month_var, width=18).pack(side="left")
+        tk.Button(month_frame, text="Load Month", command=self.refresh_all, **btn_style).pack(side="left", padx=6)
+
+        tk.Label(left, text="Monthly Income", **label_style).pack(anchor="w", pady=(12, 0))
+        tk.Entry(left, textvariable=self.income_var, width=25).pack(fill="x", pady=4)
+        tk.Button(left, text="Save Income", command=self.save_income, width=20, **btn_style).pack(pady=4)
+
+        tk.Label(left, text="Budget Method", **label_style).pack(anchor="w", pady=(12, 0))
+        method_menu = tk.OptionMenu(left, self.method_var, *BUDGET_METHODS, command=lambda _=None: self.on_method_change())
+        method_menu.pack(fill="x", pady=4)
+
+        self.custom_frame = tk.Frame(left, bg="white")
+        tk.Label(self.custom_frame, text="Custom Savings %", **label_style).pack(anchor="w")
+        tk.Entry(self.custom_frame, textvariable=self.custom_percent_var, width=25).pack(fill="x", pady=4)
+        tk.Button(self.custom_frame, text="Save Custom %", command=self.save_custom_percent, width=20, **btn_style).pack(pady=4)
+
+        sep1 = ttk.Separator(left, orient="horizontal")
+        sep1.pack(fill="x", pady=12)
+
+        tk.Label(left, text="Add Transaction", font=("Arial", 12, "bold"), **label_style).pack(anchor="w")
+        tk.Label(left, text="Date (YYYY-MM-DD)", **label_style).pack(anchor="w", pady=(6, 0))
+        self.date_entry = tk.Entry(left, width=25)
+        self.date_entry.pack(fill="x", pady=4)
+        self.date_entry.insert(0, datetime.now().strftime(DATE_FMT))
+
+        tk.Label(left, text="Type", **label_style).pack(anchor="w")
+        type_menu = tk.OptionMenu(left, self.type_var, "Expense", "Income", "Savings", command=lambda _=None: self.sync_type_category())
+        type_menu.pack(fill="x", pady=4)
+
+        tk.Label(left, text="Category", **label_style).pack(anchor="w")
+        self.category_menu_var = tk.StringVar(value="Groceries")
+        self.category_menu = ttk.Combobox(left, textvariable=self.category_var, state="readonly")
+        self.category_menu.pack(fill="x", pady=4)
+
+        tk.Label(left, text="New Category", **label_style).pack(anchor="w")
+        self.new_category_entry = tk.Entry(left, width=25)
+        self.new_category_entry.pack(fill="x", pady=4)
+        tk.Button(left, text="Add Category", command=self.add_category, width=20, **btn_style).pack(pady=4)
+
+        tk.Label(left, text="Amount", **label_style).pack(anchor="w")
+        self.amount_entry = tk.Entry(left, width=25)
+        self.amount_entry.pack(fill="x", pady=4)
+        tk.Button(left, text="Add Transaction", command=self.add_transaction, width=20, **btn_style).pack(pady=8)
+        tk.Button(left, text="Delete Selected", command=self.delete_selected_transaction, width=20, **btn_style).pack(pady=4)
+
+        sep2 = ttk.Separator(left, orient="horizontal")
+        sep2.pack(fill="x", pady=12)
+
+        tk.Label(left, text="Zero-Based Plan", font=("Arial", 12, "bold"), **label_style).pack(anchor="w")
+        tk.Label(left, text="Plan Category", **label_style).pack(anchor="w", pady=(6, 0))
+        self.plan_category_menu = ttk.Combobox(left, textvariable=self.plan_category_var, state="readonly")
+        self.plan_category_menu.pack(fill="x", pady=4)
+        tk.Label(left, text="Plan Amount", **label_style).pack(anchor="w")
+        tk.Entry(left, textvariable=self.plan_amount_var, width=25).pack(fill="x", pady=4)
+        tk.Button(left, text="Set Plan Amount", command=self.set_plan_amount, width=20, **btn_style).pack(pady=4)
+        tk.Button(left, text="Clear Month Plan", command=self.clear_month_plan, width=20, **btn_style).pack(pady=4)
+
+        tk.Label(top, text="Dashboard", font=("Arial", 16, "bold"), **label_style).pack(anchor="w")
+        self.summary_label = tk.Label(top, text="", justify="left", font=("Arial", 12), **label_style)
+        self.summary_label.pack(anchor="w", pady=(8, 10))
+        self.progress_label = tk.Label(top, text="", justify="left", font=("Arial", 11), **label_style)
+        self.progress_label.pack(anchor="w")
+
+        self.progress_container = tk.Frame(top, bg="#d9dee5", height=22)
+        self.progress_container.pack(fill="x", pady=(8, 0))
+        self.progress_container.pack_propagate(False)
+        self.progress_fill = tk.Frame(self.progress_container, bg="#9fb3c8", width=0)
+        self.progress_fill.pack(side="left", fill="y")
+
+        tk.Label(middle, text="Transactions", font=("Arial", 16, "bold"), **label_style).pack(anchor="w", pady=(0, 8))
+        columns = ("id", "date", "type", "category", "amount")
+        self.tree = ttk.Treeview(middle, columns=columns, show="headings", height=14)
+        self.tree.heading("id", text="ID")
+        self.tree.heading("date", text="Date")
+        self.tree.heading("type", text="Type")
+        self.tree.heading("category", text="Category")
+        self.tree.heading("amount", text="Amount")
+        self.tree.column("id", width=60, anchor="center")
+        self.tree.column("date", width=120, anchor="center")
+        self.tree.column("type", width=120, anchor="center")
+        self.tree.column("category", width=180, anchor="center")
+        self.tree.column("amount", width=120, anchor="e")
+        self.tree.pack(fill="both", expand=True)
+
+        chart_row = tk.Frame(bottom, bg="white")
+        chart_row.pack(fill="both", expand=True)
+
+        left_chart = tk.Frame(chart_row, bg="white")
+        left_chart.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        right_chart = tk.Frame(chart_row, bg="white")
+        right_chart.pack(side="left", fill="both", expand=True, padx=(8, 0))
+
+        self.model_figure = plt.Figure(figsize=(8, 5), dpi=100)
+        self.model_chart = self.model_figure.add_subplot(111)
+        self.model_canvas = FigureCanvasTkAgg(self.model_figure, master=left_chart)
+        self.model_canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        self.compare_figure = plt.Figure(figsize=(8, 5), dpi=100)
+        self.compare_chart = self.compare_figure.add_subplot(111)
+        self.compare_canvas = FigureCanvasTkAgg(self.compare_figure, master=right_chart)
+        self.compare_canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        self.update_custom_visibility()
+
+    def validate_month_key(self):
+        month_key = self.month_var.get().strip()
+        try:
+            datetime.strptime(month_key + "-01", DATE_FMT)
+        except ValueError:
+            messagebox.showerror("Invalid Month", "Use YYYY-MM for the working month.")
+            return None
+        return month_key
+
+    def get_monthly_income(self):
+        try:
+            return float(self.db.get_setting("monthly_income", "0"))
+        except ValueError:
+            return 0.0
+
+    def get_custom_percent(self):
+        try:
+            return float(self.db.get_setting("custom_savings_percent", "20"))
+        except ValueError:
+            return 20.0
+
+    def refresh_categories(self):
+        categories = self.db.get_categories()
+        self.category_menu["values"] = categories
+        plan_categories = [c for c in categories if c != "Savings"] + ["Savings"]
+        self.plan_category_menu["values"] = plan_categories
+
+        if self.category_var.get() not in categories:
+            self.category_var.set("Groceries" if "Groceries" in categories else categories[0])
+        if self.plan_category_var.get() not in plan_categories:
+            self.plan_category_var.set("Rent" if "Rent" in plan_categories else plan_categories[0])
+
+        self.sync_type_category()
+
+    def sync_type_category(self):
+        trans_type = self.type_var.get()
+        if trans_type == "Income":
+            self.category_var.set("Income")
+            self.category_menu.configure(state="disabled")
+        elif trans_type == "Savings":
+            if "Savings" in self.db.get_categories():
+                self.category_var.set("Savings")
+            self.category_menu.configure(state="readonly")
+        else:
+            if self.category_var.get() in ("Income", "Savings"):
+                self.category_var.set("Groceries")
+            self.category_menu.configure(state="readonly")
+
+    def save_income(self):
+        try:
+            value = float(self.income_var.get().strip())
+            if value < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Input Error", "Monthly income must be 0 or greater.")
+            return
+        self.db.set_setting("monthly_income", value)
+        self.refresh_all()
+
+    def save_custom_percent(self):
+        try:
+            value = float(self.custom_percent_var.get().strip())
+            if value < 0 or value > 100:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Input Error", "Custom savings percent must be between 0 and 100.")
+            return
+        self.db.set_setting("custom_savings_percent", value)
+        self.refresh_all()
+
+    def on_method_change(self):
+        self.db.set_setting("budget_method", self.method_var.get())
+        self.update_custom_visibility()
+        self.refresh_all()
+
+    def update_custom_visibility(self):
+        if self.method_var.get() == "Custom Savings":
+            self.custom_frame.pack(fill="x", pady=(8, 0))
+        else:
+            self.custom_frame.pack_forget()
+
+    def add_category(self):
+        name = self.new_category_entry.get().strip()
+        if not name:
+            messagebox.showerror("Input Error", "Enter a category name.")
+            return
+        if name.lower() == "income":
+            messagebox.showerror("Input Error", "Income is reserved for income entries.")
+            return
+        self.db.add_category(name)
+        self.new_category_entry.delete(0, tk.END)
+        self.refresh_categories()
+
+    def add_transaction(self):
+        month_key = self.validate_month_key()
+        if not month_key:
+            return
+
+        date_text = self.date_entry.get().strip()
+        trans_type = self.type_var.get()
+        category = self.category_var.get().strip()
+        amount_text = self.amount_entry.get().strip()
+
+        try:
+            parsed = datetime.strptime(date_text, DATE_FMT)
+        except ValueError:
+            messagebox.showerror("Input Error", "Date must use YYYY-MM-DD.")
+            return
+
+        if parsed.strftime("%Y-%m") != month_key:
+            messagebox.showerror("Month Mismatch", "Transaction date must match the working month.")
+            return
+
+        if trans_type == "Income":
+            category = "Income"
+        elif trans_type == "Savings":
+            category = "Savings"
+
+        try:
+            amount = float(amount_text)
+            if amount < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Input Error", "Amount must be a valid number 0 or greater.")
+            return
+
+        self.db.add_transaction(date_text, trans_type, category, amount)
+        self.amount_entry.delete(0, tk.END)
+        self.refresh_all()
+
+    def delete_selected_transaction(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showerror("Selection Error", "Select a transaction first.")
+            return
+        tx_id = self.tree.item(selected[0], "values")[0]
+        self.db.delete_transaction(int(tx_id))
+        self.refresh_all()
+
+    def set_plan_amount(self):
+        month_key = self.validate_month_key()
+        if not month_key:
+            return
+        category = self.plan_category_var.get().strip()
+        try:
+            amount = float(self.plan_amount_var.get().strip())
+            if amount < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Input Error", "Plan amount must be 0 or greater.")
+            return
+
+        allocations = self.db.get_allocations(month_key)
+        allocations[category] = amount
+        self.db.save_allocations(month_key, allocations)
+        self.plan_amount_var.set("")
+        self.refresh_all()
+
+    def clear_month_plan(self):
+        month_key = self.validate_month_key()
+        if not month_key:
+            return
+        self.db.save_allocations(month_key, {})
+        self.refresh_all()
+
+    def get_budget_model_data(self, month_key):
+        income = self.get_monthly_income() + self.db.get_month_totals(month_key)["Income"]
+        method = self.method_var.get()
+        if income <= 0:
+            return {}
+
+        if method == "50/30/20 Rule":
+            return {"Needs": income * 0.50, "Wants": income * 0.30, "Savings": income * 0.20}
+        if method == "70/20/10 Rule":
+            return {"Living": income * 0.70, "Savings": income * 0.20, "Debt/Giving": income * 0.10}
+        if method == "Custom Savings":
+            percent = self.get_custom_percent() / 100.0
+            savings = income * percent
+            return {"Spending": income - savings, "Savings": savings}
+        if method == "Zero-Based":
+            return self.db.get_allocations(month_key)
+        return {}
+
+    def get_summary_numbers(self, month_key):
+        totals = self.db.get_month_totals(month_key)
+        entered_income = self.get_monthly_income()
+        added_income = totals["Income"]
+        total_income = entered_income + added_income
+        expenses = totals["Expense"]
+        savings_entries = totals["Savings"]
+        balance = total_income - expenses - savings_entries
+        return {
+            "entered_income": entered_income,
+            "added_income": added_income,
+            "total_income": total_income,
+            "expenses": expenses,
+            "savings_entries": savings_entries,
+            "balance": balance,
+        }
+
+    def update_summary(self, month_key):
+        nums = self.get_summary_numbers(month_key)
+        self.summary_label.config(
+            text=(
+                f"Month: {month_key}    Monthly Income: ${nums['entered_income']:.2f}    Added Income: ${nums['added_income']:.2f}\n"
+                f"Total Income: ${nums['total_income']:.2f}    Expenses: ${nums['expenses']:.2f}    Savings Entries: ${nums['savings_entries']:.2f}    Balance: ${nums['balance']:.2f}"
+            )
+        )
+
+        method = self.method_var.get()
+        model_data = self.get_budget_model_data(month_key)
+        if method == "Zero-Based":
+            assigned = sum(model_data.values())
+            income = nums["total_income"]
+            difference = income - assigned
+            progress = 0 if income <= 0 else min((assigned / income) * 100, 100)
+            status_text = (
+                f"Assigned: ${assigned:.2f} of ${income:.2f}    Unassigned: ${max(difference, 0):.2f}    Over Budget: ${abs(min(difference, 0)):.2f}"
+            )
+        else:
+            target = model_data.get("Savings", 0.0)
+            actual = nums["savings_entries"]
+            progress = 0 if target <= 0 else min((actual / target) * 100, 100)
+            status_text = f"Savings Target: ${target:.2f}    Actual Savings Entries: ${actual:.2f}    Progress: {progress:.1f}%"
+
+        self.progress_label.config(text=status_text)
+        self.progress_container.update_idletasks()
+        width = self.progress_container.winfo_width()
+        self.progress_fill.config(width=int(width * (progress / 100.0)))
+
+    def update_transactions_table(self, month_key):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        for row in self.db.get_transactions_for_month(month_key):
+            self.tree.insert(
+                "",
+                "end",
+                values=(row["id"], row["date"], row["type"], row["category"], f"${float(row['amount']):.2f}"),
+            )
+
+    def update_model_chart(self, month_key):
+        self.model_chart.clear()
+        nums = self.get_summary_numbers(month_key)
+        income = nums["total_income"]
+        method = self.method_var.get()
+        data = self.get_budget_model_data(month_key)
+
+        if income <= 0:
+            self.model_chart.set_title("Budget Model Overview")
+            self.model_chart.text(0.5, 0.5, "Add income for this month to view budget data", ha="center", va="center")
+            self.model_figure.tight_layout()
+            self.model_canvas.draw()
+            return
+
+        if method == "Zero-Based":
+            self.model_chart.set_title("Zero-Based Monthly Plan")
+            left = 0
+            if data:
+                for category, value in sorted(data.items(), key=lambda item: item[1], reverse=True):
+                    self.model_chart.barh(["Income Plan"], [value], left=left, label=category)
+                    left += value
+
+            difference = income - sum(data.values())
+            if difference > 0:
+                self.model_chart.barh(["Income Plan"], [difference], left=left, label="Unassigned")
+            elif difference < 0:
+                self.model_chart.barh(["Over Budget"], [abs(difference)], left=0, label="Over Budget")
+
+            self.model_chart.set_xlabel("Amount ($)")
+            self.model_chart.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=3, fontsize=8)
+            self.model_chart.text(income, 0, f"  Total Income ${income:.2f}", va="center")
+        else:
+            labels = list(data.keys())
+            values = list(data.values())
+            bars = self.model_chart.barh(labels, values)
+            self.model_chart.set_title(f"{method} Allocation")
+            self.model_chart.set_xlabel("Amount ($)")
+            self.model_chart.invert_yaxis()
+            max_val = max(values) if values else 0
+            pad = max(max_val * 0.02, 1)
+            for bar, value in zip(bars, values):
+                self.model_chart.text(bar.get_width() + pad, bar.get_y() + bar.get_height()/2, f"${value:.2f}", va="center")
+
+        self.model_figure.tight_layout()
+        self.model_canvas.draw()
+
+    def update_comparison_chart(self, month_key):
+        self.compare_chart.clear()
+        method = self.method_var.get()
+        actual = self.db.get_expense_totals_by_category(month_key)
+
+        if method == "Zero-Based":
+            planned = self.db.get_allocations(month_key)
+            categories = sorted(set(planned.keys()) | set(actual.keys()))
+            if not categories:
+                self.compare_chart.set_title("Planned vs Actual")
+                self.compare_chart.text(0.5, 0.5, "No plan or expense data yet", ha="center", va="center")
+            else:
+                y = list(range(len(categories)))
+                planned_vals = [planned.get(cat, 0.0) for cat in categories]
+                actual_vals = [actual.get(cat, 0.0) for cat in categories]
+                height = 0.35
+                self.compare_chart.barh([i - height/2 for i in y], planned_vals, height=height, label="Planned")
+                self.compare_chart.barh([i + height/2 for i in y], actual_vals, height=height, label="Actual")
+                self.compare_chart.set_yticks(y)
+                self.compare_chart.set_yticklabels(categories)
+                self.compare_chart.set_title("Zero-Based Planned vs Actual")
+                self.compare_chart.set_xlabel("Amount ($)")
+                self.compare_chart.legend()
+        else:
+            if not actual:
+                self.compare_chart.set_title("Expense Categories")
+                self.compare_chart.text(0.5, 0.5, "No expense data yet", ha="center", va="center")
+            else:
+                categories = list(actual.keys())
+                values = list(actual.values())
+                bars = self.compare_chart.bar(categories, values)
+                self.compare_chart.set_title("Actual Expense Categories")
+                self.compare_chart.set_xlabel("Category")
+                self.compare_chart.set_ylabel("Amount ($)")
+                self.compare_chart.tick_params(axis="x", rotation=25)
+                for bar, value in zip(bars, values):
+                    self.compare_chart.text(bar.get_x() + bar.get_width()/2, bar.get_height(), f"${value:.0f}", ha="center", va="bottom")
+
+        self.compare_figure.tight_layout()
+        self.compare_canvas.draw()
+
+    def refresh_all(self):
+        month_key = self.validate_month_key()
+        if not month_key:
+            return
+        self.method_var.set(self.db.get_setting("budget_method", self.method_var.get()))
+        self.income_var.set(self.db.get_setting("monthly_income", self.income_var.get()))
+        self.custom_percent_var.set(self.db.get_setting("custom_savings_percent", self.custom_percent_var.get()))
+        self.refresh_categories()
+        self.update_custom_visibility()
+        self.update_summary(month_key)
+        self.update_transactions_table(month_key)
+        self.update_model_chart(month_key)
+        self.update_comparison_chart(month_key)
 
 
-load_data()
-show_records()
-update_summary()
-update_budget_method_display()
-update_category_chart()
-update_balance_chart()
-
-window.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = BudgetTrackerApp(root)
+    root.mainloop()
