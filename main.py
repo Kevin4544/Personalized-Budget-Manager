@@ -1,4 +1,4 @@
-from ExpenseTracker import FinanceDB
+from DatabaseHandler import FinanceDB
 
 from datetime import datetime
 from collections import defaultdict
