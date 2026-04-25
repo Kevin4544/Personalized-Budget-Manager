@@ -1,4 +1,5 @@
-import sqlite3
+from ExpenseTracker import FinanceDB
+
 from datetime import datetime
 from collections import defaultdict
 import tkinter as tk
@@ -7,194 +8,17 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-DB_FILE = "finance_tracker.db"
+# This ensures that everytime the date is saved it is in Y-M-D format
 DATE_FMT = "%Y-%m-%d"
-DEFAULT_CATEGORIES = [
-    "Rent",
-    "Groceries",
-    "Utilities",
-    "Transport",
-    "Dining",
-    "Entertainment",
-    "Health",
-    "Subscriptions",
-    "Shopping",
-    "Other",
-    "Savings",
-]
+
+# This list shows each budgeting type we can use
 BUDGET_METHODS = ["50/30/20 Rule", "70/20/10 Rule", "Custom Savings", "Zero-Based"]
-
-
-class FinanceDB:
-    def __init__(self, db_path=DB_FILE):
-        self.conn = sqlite3.connect(db_path)
-        self.conn.row_factory = sqlite3.Row
-        self.create_tables()
-        self.seed_defaults()
-
-    def create_tables(self):
-        cur = self.conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                type TEXT NOT NULL,
-                category TEXT NOT NULL,
-                amount REAL NOT NULL CHECK(amount >= 0)
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS budget_allocations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                month_key TEXT NOT NULL,
-                category TEXT NOT NULL,
-                amount REAL NOT NULL CHECK(amount >= 0),
-                UNIQUE(month_key, category)
-            )
-            """
-        )
-        self.conn.commit()
-
-    def seed_defaults(self):
-        cur = self.conn.cursor()
-        for name in DEFAULT_CATEGORIES:
-            cur.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)", (name,))
-        defaults = {
-            "monthly_income": "0",
-            "custom_savings_percent": "20",
-            "budget_method": "50/30/20 Rule",
-        }
-        for key, value in defaults.items():
-            cur.execute(
-                "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
-                (key, value),
-            )
-        self.conn.commit()
-
-    def get_setting(self, key, default=""):
-        row = self.conn.execute(
-            "SELECT value FROM settings WHERE key = ?", (key,)
-        ).fetchone()
-        return row["value"] if row else default
-
-    def set_setting(self, key, value):
-        self.conn.execute(
-            """
-            INSERT INTO settings(key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (key, str(value)),
-        )
-        self.conn.commit()
-
-    def get_categories(self):
-        rows = self.conn.execute(
-            "SELECT name FROM categories ORDER BY name COLLATE NOCASE"
-        ).fetchall()
-        return [row["name"] for row in rows]
-
-    def add_category(self, name):
-        self.conn.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)", (name,))
-        self.conn.commit()
-
-    def add_transaction(self, date_text, trans_type, category, amount):
-        self.conn.execute(
-            "INSERT INTO transactions(date, type, category, amount) VALUES (?, ?, ?, ?)",
-            (date_text, trans_type, category, amount),
-        )
-        self.conn.commit()
-
-    def delete_transaction(self, tx_id):
-        self.conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
-        self.conn.commit()
-
-    def get_transactions_for_month(self, month_key):
-        rows = self.conn.execute(
-            """
-            SELECT id, date, type, category, amount
-            FROM transactions
-            WHERE substr(date, 1, 7) = ?
-            ORDER BY date DESC, id DESC
-            """,
-            (month_key,),
-        ).fetchall()
-        return rows
-
-    def get_month_totals(self, month_key):
-        rows = self.conn.execute(
-            """
-            SELECT type, COALESCE(SUM(amount), 0) AS total
-            FROM transactions
-            WHERE substr(date, 1, 7) = ?
-            GROUP BY type
-            """,
-            (month_key,),
-        ).fetchall()
-        totals = {"Expense": 0.0, "Income": 0.0, "Savings": 0.0}
-        for row in rows:
-            totals[row["type"]] = float(row["total"])
-        return totals
-
-    def get_expense_totals_by_category(self, month_key):
-        rows = self.conn.execute(
-            """
-            SELECT category, COALESCE(SUM(amount), 0) AS total
-            FROM transactions
-            WHERE substr(date, 1, 7) = ? AND type = 'Expense'
-            GROUP BY category
-            ORDER BY total DESC, category
-            """,
-            (month_key,),
-        ).fetchall()
-        return {row["category"]: float(row["total"]) for row in rows}
-
-    def save_allocations(self, month_key, allocations):
-        cur = self.conn.cursor()
-        cur.execute("DELETE FROM budget_allocations WHERE month_key = ?", (month_key,))
-        for category, amount in allocations.items():
-            if amount > 0:
-                cur.execute(
-                    "INSERT INTO budget_allocations(month_key, category, amount) VALUES (?, ?, ?)",
-                    (month_key, category, amount),
-                )
-        self.conn.commit()
-
-    def get_allocations(self, month_key):
-        rows = self.conn.execute(
-            """
-            SELECT category, amount
-            FROM budget_allocations
-            WHERE month_key = ?
-            ORDER BY amount DESC, category
-            """,
-            (month_key,),
-        ).fetchall()
-        return {row["category"]: float(row["amount"]) for row in rows}
 
 
 class BudgetTrackerApp:
     def __init__(self, root):
         self.root = root
-        self.db = FinanceDB()
+        self.db = FinanceDB() #instance of the class from ExpenseTracker
         self.root.title("Polished Budget Tracker")
         self.root.geometry("1700x980")
         self.root.configure(bg="#eef2f5")
@@ -212,6 +36,7 @@ class BudgetTrackerApp:
         self.refresh_categories()
         self.refresh_all()
 
+    # This method creates the containers and formatting for the user interface
     def build_ui(self):
         main = tk.Frame(self.root, bg="#eef2f5")
         main.pack(fill="both", expand=True, padx=14, pady=14)
@@ -344,7 +169,7 @@ class BudgetTrackerApp:
         self.compare_figure = plt.Figure(figsize=(8, 5), dpi=100)
         self.compare_chart = self.compare_figure.add_subplot(111)
         self.compare_canvas = FigureCanvasTkAgg(self.compare_figure, master=right_chart)
-        self.compare_canvas.get_tk_widget().pack(fill="both", expand=True)
+        self.compare_canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
 
         self.update_custom_visibility()
 
@@ -548,6 +373,8 @@ class BudgetTrackerApp:
             "balance": balance,
         }
 
+    # This method calls get_summary_numbers() to get the totals from the database
+    # It then uses .config() to update the labels you see in the app
     def update_summary(self, month_key):
         nums = self.get_summary_numbers(month_key)
         self.summary_label.config(
