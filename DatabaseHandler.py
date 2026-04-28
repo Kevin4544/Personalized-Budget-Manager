@@ -161,15 +161,16 @@ class FinanceDB:
 
     def get_expense_totals_by_category(self, month_key):
         rows = self.conn.execute(
-            """
-            SELECT category, COALESCE(SUM(amount), 0) AS total
-            FROM transactions
-            WHERE substr(date, 1, 7) = ? AND type = 'Expense'
-            GROUP BY category
-            ORDER BY total DESC, category
-            """,
-            (month_key,),
-        ).fetchall()
+        """
+        SELECT category, COALESCE(SUM(amount), 0) AS total
+        FROM transactions
+        WHERE substr(date, 1, 7) = ?
+          AND type IN ('Expense', 'Savings')
+        GROUP BY category
+        ORDER BY total DESC, category
+        """,
+        (month_key,),
+    ).fetchall()
         return {row["category"]: float(row["total"]) for row in rows}
 
     def save_allocations(self, month_key, allocations):
